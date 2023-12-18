@@ -1,7 +1,5 @@
-subdir('amrc')
-subdir('amrs')
+subdir('client')
+subdir('server')
 
-shared_sources = files('number.cxx')
+shared_sources += files('generate_shares.cc')
 
-client_sources += shared_sources
-server_sources += shared_sources

@@ -1,2 +1,3 @@
-install_headers('encrypt.hxx',
+install_headers('inference.h',
                 subdir : 'amrc')
+

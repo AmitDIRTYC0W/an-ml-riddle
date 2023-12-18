@@ -1,0 +1,16 @@
+namespace amr;
+
+table DenseLayerShare {
+  weights:[uint16];
+  biases:[uint16];
+}
+
+union LayerShare {
+  DenseLayerShare
+}
+
+table ModelShare {
+  layers:[LayerShare];
+}
+
+root_type ModelShare;
