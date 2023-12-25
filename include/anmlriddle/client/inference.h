@@ -4,56 +4,46 @@
 #define ANMLRIDDLE_CLIENT_INFERENCE_H_
 
 #include <vector>
-#include <cstdint>
+#include <queue>
 #include <functional>
-#include <memory>
-#include <optional>
 #include <future>
+#include <mutex>
 
 #include <capnp/message.h>
-
-#include <anmlriddle/client/layer.h>
-#include <anmlriddle/com.h>
-#include "Model.capnp.h"
-// #include <amrc/Model.capnp.h>
-// #include "model_share_generated.h"
-
-class Layer;
 
 namespace amrc {
 
 class Inference {
-  friend class Layer;
-
  private:
-    std::function<void(const ::capnp::MessageBuilder&)> send_;
-    std::unique_ptr<Layer> current_layer_;
-    capnp::List<LayerShare>::Reader::Iterator current_layer_it_;
-    std::optional<ModelShare::Reader> model_share_;
-    std::promise<std::vector<float>> result_;
-    std::shared_ptr<ComVec> result_share_;
+  std::function<void(const ::capnp::MessageBuilder&)> send_;
+  const std::vector<float> input_;
+  std::promise<std::vector<float>> result_;
 
-    void Next();
+  std::vector<Layer> layers_;
+  std::atomic_bool received_model_ = false;
 
-    inline void set_model_share_(ModelShare::Reader model_share) {
-      model_share_ = model_share;
-      current_layer_it_ = model_share.getLayers().begin();
-    }
+  std::queue<const ::capnp::MessageReader&> layer_messages_;
+  std::mutex layer_messages_mutex_;
+  std::condition_variable layer_messages_condition_;
 
-    // TODO Add optional parameter to Next to choose the next layer
-    // that is not in the model
+  std::jthread layers_inference_;
+
+  void SetupModel(const ModelShare::Reader& model_share);
+  void StartOnlinePhase();
+  void InferLayers();
 
  public:
-    Inference(std::function<void(const ::capnp::MessageBuilder&)> send,
-              std::vector<float> input);
+  Inference(std::function<void(const ::capnp::MessageBuilder&)> send,
+            std::vector<float> input) : send_(send), input_(input) {}
+  Inference(Inference& other) = delete;
 
-    void Receive(::capnp::MessageReader& message);
+  void Receive(::capnp::MessageReader& message);
 
-    inline std::promise<std::vector<float>>& get_result() {
-      return result_;
-    }
-};
+  inline std::future<std::vector<float>>& get_result() {
+    return result_.get_future();
+  }
+}
 
 }  // namespace amrc
 
-#endif
+#endif  // ANMLRIDDLE_CLIENT_INFERENCE_H_

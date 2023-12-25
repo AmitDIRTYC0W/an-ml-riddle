@@ -21,17 +21,12 @@ class Layer {
       // TODO maybe it should be a weak_ptr? idk
     Inference& inference_;
 
-    ComVec& get_result_share_();
-    void set_result_share_(std::shared_ptr<ComVec> result_share);
-    void set_model_share_(const ModelShare::Reader model_share);
-    void Next();
-    std::promise<std::vector<float>>& get_result_();
     void Send(const ::capnp::MessageBuilder& message);
+    ::capnp::MessageReader& GetMessage();
  public:
     explicit Layer(Inference& inference) : inference_(inference) {}
     virtual ~Layer() = default;
-    virtual void Begin() {}
-    virtual void Receive(::capnp::MessageReader& message) {}
+    virtual ComVec Infer(ComVec last) = 0;
 };
 
 }  // namespace amrc

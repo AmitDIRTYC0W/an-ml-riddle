@@ -11,13 +11,11 @@
 namespace amrc {
 
 class InitialLayer : public Layer {
- private:
-    std::vector<float> input_;
  public:
     InitialLayer(Inference& inference, std::vector<float> input)
         : Layer(inference), input_(input) {}
     virtual ~InitialLayer() = default;  // TODO remove 'virtual'
-    void Receive(::capnp::MessageReader& message);
+    ComVec Infer(ComVec last);
 };
 
 }  // namespace amrc

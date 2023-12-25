@@ -5,51 +5,78 @@
 #include "../generate_shares.h"
 #include <anmlriddle/client/initial_layer.h>
 #include <anmlriddle/client/final_layer.h>
-#include <anmlriddle/com.h>
 #include <anmlriddle/client/dense_layer.h>
+#include <anmlriddle/com.h>
 
 namespace amrc {
 
-Inference::Inference(std::function<void(const ::capnp::MessageBuilder&)> send,
-                     std::vector<float> input) : send_(send) {
-  current_layer_ = std::make_unique<InitialLayer>(*this, input);
-}
-
-void Inference::Next() {
-  if (++current_layer_it_ != model_share_.value().getLayers().end()) {
-    switch (current_layer_it_->which()) {
+void Inference::SetupModel(const ModelShare::Reader& model_share) {
+  layers_->push_back(InitialLayer());
+    
+  auto layer_shares = model_share.getLayerShares();
+  for (auto it = layer_shares.begin(); it != layer_shares.end(); ++it) {
+    switch (it->which()) {
       case LayerShare::DENSE:
-        auto dense_layer_share = current_layer_it_->getDense();
-        current_layer_ = std::make_unique<DenseLayer>(*this, dense_layer_share);
+        layers_->push_back(DenseLayer(it->getDense()));
         break;
     }
-  } else {
-    current_layer_ = std::make_unique<FinalLayer>(*this);
   }
+
+  layers_->push_back(FinalLayer());
+}
+
+void Inference::StartOnlinePhase() {
+  layers_inference_ = std::jthread(InferLayers);
+}
+
+void Inference::InferLayers() {
+  using namespace std::placeholders;
+
+  // Convert the input from float to communicable
+  ComVec input_com(input_.size());
+  std::transform(std::par_unseq, input_.begin(), input_.end(),
+      input_com.begin(), FloatToCom);
+
+  // Iterate over all the layers and execute each one
+  try {
+    ComVec output_com = std::accumulate(layers_.begin(), layers_.end(),
+        input_com, std::bind(&Layer::Infer, _2, _1));
+  } catch (const Exception& e) {
+    // WARNING I'm not sure std::accumulate propogates exceptions...
+    result_.set_exception(e);
+    return;
+  }
+
+  // Convert the output back to float
+  std::vector<float> output(output_com.size());
+  std::transform(output_com.begin(), output_com.end(), output.begin(),
+      ComToFloat);
+  result_.set_value(output);
 }
 
 void Inference::Receive(::capnp::MessageReader& message) {
-  current_layer_->Receive(message);
+  auto server_message = message.getRoot<ServerMessage>();
+
+  switch (server_message.which()) {
+    case ServerMessage::MODEL_SHARE:
+      if (!received_model_) {
+        received_model_ = true;
+        SetupModel(server_message.getModelShare());
+        StartOnlinePhase();
+      } else {
+        result_.set_exception(
+          UnexpectedMessageError("Received another model share"));
+      }
+      break;
+    case ServerMessage::VECTOR_SHARE: // WARNING This will be changed
+      {
+        std::scoped_lock<std::shared_mutex> layer_messages_lock
+          (layer_messages_mutex_);
+        layer_messages_.push(server_message);
+      }
+      layer_messages_condition_.notify_one();
+      break;
+  }
 }
-
-// void Inference::SetCurrentLayer(size_t index) {
-//   current_layer_index_ = index;
-//   switch (model_share_.getLayers()[index]) {
-//     case ,,,
-//   }
-// }
-
-// inline void Receive(::capnp::MessageReader& message) {
-//   if (!model_share_) {
-//     model_share_ = message.getRoot<ModelShare>();
-//     current_layer_ = 
-//   } else {
-//     state_->Receive(*this, message);
-//   }
-// }
-
-// void Inference::Begin(std::vector<float> input) {
-//   state_ = std::make_unique<NoModelInferenceState>();
-// }
 
 }  // namespace amrc

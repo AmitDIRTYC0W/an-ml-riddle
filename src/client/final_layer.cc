@@ -6,28 +6,23 @@
 
 #include <anmlriddle/client/unexpected_message_error.h>
 #include <anmlriddle/com.h>
-// #include "vector_share_generated.h"
 #include "Model.capnp.h"
 
 namespace amrc {
 
-inline float SumComToFloat(const Com& a, const Com& b) {
-  return ComToFloat(a + b);
-}
+ComVec FinalLayer::Infer(ComVec last) {
+  // The server should send us a message
+  auto servers_share = GetMessage().getRoot<VectorShare>().getVectorShare();
 
-void FinalLayer::Receive(::capnp::MessageReader& message) {
-  auto servers_share = message.getRoot<VectorShare>().getVectorShare();
-
-  if (get_result_share_().size() != servers_share.size()) {
+  if (last.size() != servers_share.size()) {
     throw UnexpectedMessageError("The server's share and ours differ in size");
   }
 
-  std::vector<float> result;
-  std::transform(get_result_share_().begin(),
-      get_result_share_().end(), servers_share.begin(), result.begin(),
-      SumComToFloat);
+  ComVec result(last.size());
+  std::transform(std::par_unseq, servers_share.begin(), servers_share.end(),
+      last.begin(), result.begin());
 
-  get_result_().set_value(result);
+  return result;
 }
 
 }  // namespace amrc

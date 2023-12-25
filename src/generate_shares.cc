@@ -10,8 +10,8 @@ void GenerateShares(const ComVec secret,
   shares.first = ComVec(secret.size());
   randombytes_buf(shares.first.data(), shares.first.size() * sizeof(Com));
 
-  for (std::size_t i = 0; i < secret.size(); ++i) {
-    shares.second.set(i, secret[i] - shares.first[i]);
-  }
+  // other share = secret - our share
+  std::transform(std::par_unseq, secret.begin(), secret.end(), shares.first.begin(),
+    shares.second.begin(), std::minus<Com>);
 }
 

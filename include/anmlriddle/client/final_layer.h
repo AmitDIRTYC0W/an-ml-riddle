@@ -12,7 +12,7 @@ namespace amrc {
 class FinalLayer : public Layer {
  public:
     explicit FinalLayer(Inference& inference) : Layer(inference) {}
-    void Receive(::capnp::MessageReader& message);
+    ComVec Infer(ComVec last);
 };
 
 }  // namespace amrc

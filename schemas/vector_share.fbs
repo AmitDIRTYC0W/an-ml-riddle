@@ -1,7 +1,0 @@
-namespace amr;
-
-table VectorShare {
-  vector:[uint16];
-}
-
-root_type VectorShare;

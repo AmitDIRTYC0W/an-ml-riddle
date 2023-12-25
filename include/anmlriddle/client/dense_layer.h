@@ -11,12 +11,11 @@ namespace amrc {
 
 class DenseLayer : public Layer {
  private:
-    LayerShare::Dense::Reader layer_share_;
+  LayerShare::Dense::Reader layer_share_;
  public:
-    DenseLayer(Inference& inference, LayerShare::Dense::Reader layer_share)
-        : Layer(inference), layer_share_(layer_share) {}
-    void Begin();
-    void Receive(::capnp::MessageReader& message) {};
+  DenseLayer(Inference& inference, LayerShare::Dense::Reader layer_share)
+      : Layer(inference), layer_share_(layer_share) {}
+  ComVec Infer(ComVec last);
 };
 
 }  // namespace amrc

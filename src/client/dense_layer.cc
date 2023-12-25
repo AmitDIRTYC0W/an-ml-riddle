@@ -9,20 +9,18 @@
 
 namespace amrc {
 
-void DenseLayer::Begin() {
+ComVec DenseLayer::Infer(ComVec last) {
   auto biases_share = layer_share_.getBiasesShare();
-
-  /*
-  if (inference_.result_share_.size() != biases_share.size()) {
+  
+  if (last.size() != biases_share.size()) {
     throw UnexpectedMessageError("The server's share and ours differ in size");
-  }*/
+  }
 
-  auto new_result_share = std::make_shared<ComVec>();
-  std::transform(get_result_share_().begin(), get_result_share_().end(),
-      biases_share.begin(), new_result_share->begin(), std::plus<Com>());
-  set_result_share_(new_result_share);
+  ComVec sum_share(last.size());
+  std::transform(last.begin(), last().end(), biases_share.begin(),
+      sum_share->begin(), std::plus<Com>());
 
-  Next();
+  return sum_share;
 }
 
 }  // namespace amrc
