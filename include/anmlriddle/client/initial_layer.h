@@ -12,8 +12,7 @@ namespace amrc {
 
 class InitialLayer : public Layer {
  public:
-    InitialLayer(Inference& inference, std::vector<float> input)
-        : Layer(inference), input_(input) {}
+    explicit InitialLayer(Inference& inference) : Layer(inference) {}
     virtual ~InitialLayer() = default;  // TODO remove 'virtual'
     ComVec Infer(ComVec last);
 };

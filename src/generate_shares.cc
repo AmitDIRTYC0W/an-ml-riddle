@@ -2,6 +2,10 @@
 
 #include "generate_shares.h"
 
+#include <algorithm>
+#include <execution>
+#include <ranges>
+
 #include <sodium.h>
 
 void GenerateShares(const ComVec secret,
@@ -11,7 +15,8 @@ void GenerateShares(const ComVec secret,
   randombytes_buf(shares.first.data(), shares.first.size() * sizeof(Com));
 
   // other share = secret - our share
-  std::transform(std::par_unseq, secret.begin(), secret.end(), shares.first.begin(),
-    shares.second.begin(), std::minus<Com>);
+  // FIXME use par_unseq
+  std::ranges::for_each(std::views::iota((ComVec::size_type)0, secret.size()),
+    [&](unsigned long i) {shares.second.set(i, secret[i] - shares.first[i]);});
 }
 

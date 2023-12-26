@@ -18,8 +18,8 @@ ComVec InitialLayer::Infer(ComVec last) {
   // Generate both shares
   ComVec our_input_share(last.size());
   GenerateShares(last,
-      std::pair<ComVec&, ComList::Builder&>(servers_input_share,
-        our_input_share));
+      std::pair<ComVec&, ComList::Builder&>(our_input_share,
+        servers_input_share));
 
   // Send a share to the server
   Send(message_to_server);

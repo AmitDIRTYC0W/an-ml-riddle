@@ -7,7 +7,7 @@ struct VectorShare {
 }
 
 struct ModelShare {
-  layers @0 :List(LayerShare);
+  layerShares @0 :List(LayerShare);
 }
 
 struct LayerShare {
@@ -19,5 +19,12 @@ struct LayerShare {
   union {
     dense @0 :Dense;
     fuck @1 :Void;
+  }
+}
+
+struct ServerMessage {
+  union {
+    modelShare @0 :ModelShare;
+    vectorShare @1 :VectorShare;
   }
 }

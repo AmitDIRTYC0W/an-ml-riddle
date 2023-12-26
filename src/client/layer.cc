@@ -8,13 +8,16 @@ void Layer::Send(const ::capnp::MessageBuilder& message) {
   inference_.send_(message);
 }
 
-::capnp::MessageReader& GetMessage() {
+ServerMessage::Reader Layer::GetMessage() {
   std::unique_lock lock(inference_.layer_messages_mutex_);
 
   if (inference_.layer_messages_.empty()) {
-    inference_.layer_messages_condition_.wait(lock)
+    inference_.layer_messages_condition_.wait(lock);
   }
-  return inference_.layer_messages_.pop();
+
+  auto message = inference_.layer_messages_.front();
+  inference_.layer_messages_.pop();
+  return message;
 }
 
 }  // namespace amrc

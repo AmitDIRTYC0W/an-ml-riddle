@@ -3,6 +3,7 @@
 #include <anmlriddle/client/final_layer.h>
 
 #include <algorithm>
+#include <execution>
 
 #include <anmlriddle/client/unexpected_message_error.h>
 #include <anmlriddle/com.h>
@@ -12,15 +13,16 @@ namespace amrc {
 
 ComVec FinalLayer::Infer(ComVec last) {
   // The server should send us a message
-  auto servers_share = GetMessage().getRoot<VectorShare>().getVectorShare();
+  auto servers_share = GetMessage().getVectorShare().getVectorShare();
 
   if (last.size() != servers_share.size()) {
     throw UnexpectedMessageError("The server's share and ours differ in size");
   }
 
   ComVec result(last.size());
-  std::transform(std::par_unseq, servers_share.begin(), servers_share.end(),
-      last.begin(), result.begin());
+    // FIXME use par_unseq
+  std::transform(servers_share.begin(), servers_share.end(),
+      last.begin(), result.begin(), std::plus<Com>());
 
   return result;
 }

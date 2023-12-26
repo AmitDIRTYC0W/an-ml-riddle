@@ -8,21 +8,29 @@
 #include <functional>
 #include <future>
 #include <mutex>
+#include <thread>
 
 #include <capnp/message.h>
 
+#include <anmlriddle/client/layer.h>
+#include "Model.capnp.h"
+
 namespace amrc {
 
+class Layer;
+
 class Inference {
+  friend class Layer;
+  
  private:
   std::function<void(const ::capnp::MessageBuilder&)> send_;
   const std::vector<float> input_;
   std::promise<std::vector<float>> result_;
 
-  std::vector<Layer> layers_;
+  std::vector<std::unique_ptr<Layer>> layers_;
   std::atomic_bool received_model_ = false;
 
-  std::queue<const ::capnp::MessageReader&> layer_messages_;
+  std::queue<ServerMessage::Reader> layer_messages_;
   std::mutex layer_messages_mutex_;
   std::condition_variable layer_messages_condition_;
 
@@ -39,10 +47,10 @@ class Inference {
 
   void Receive(::capnp::MessageReader& message);
 
-  inline std::future<std::vector<float>>& get_result() {
+  inline std::future<std::vector<float>> get_result() {
     return result_.get_future();
   }
-}
+};
 
 }  // namespace amrc
 

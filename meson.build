@@ -1,4 +1,5 @@
 project('an-ml-riddle', 'cpp',
+        default_options : ['c_std=c20', 'cpp_std=c++20'],
         license : 'MPL-2.0',
         version : '0.1.0')
 

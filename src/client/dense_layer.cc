@@ -6,6 +6,7 @@
 #include <functional>
 
 #include <anmlriddle/com.h>
+#include <anmlriddle/client/unexpected_message_error.h>
 
 namespace amrc {
 
@@ -17,8 +18,8 @@ ComVec DenseLayer::Infer(ComVec last) {
   }
 
   ComVec sum_share(last.size());
-  std::transform(last.begin(), last().end(), biases_share.begin(),
-      sum_share->begin(), std::plus<Com>());
+  std::transform(last.begin(), last.end(), biases_share.begin(),
+      sum_share.begin(), std::plus<Com>());
 
   return sum_share;
 }

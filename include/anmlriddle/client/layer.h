@@ -22,7 +22,7 @@ class Layer {
     Inference& inference_;
 
     void Send(const ::capnp::MessageBuilder& message);
-    ::capnp::MessageReader& GetMessage();
+    ServerMessage::Reader GetMessage();
  public:
     explicit Layer(Inference& inference) : inference_(inference) {}
     virtual ~Layer() = default;
