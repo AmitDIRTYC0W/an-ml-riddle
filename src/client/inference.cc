@@ -4,9 +4,9 @@
 
 #include <algorithm>
 #include <execution>
+#include <ranges>
 
 #include "../generate_shares.h"
-#include <anmlriddle/client/initial_layer.h>
 #include <anmlriddle/client/final_layer.h>
 #include <anmlriddle/client/dense_layer.h>
 #include <anmlriddle/com.h>
@@ -14,26 +14,57 @@
 
 namespace amrc {
 
-void Inference::SetupModel(const ModelShare::Reader& model_share) {
-  layers_.push_back(std::make_unique<InitialLayer>(*this));
-    
-  auto layer_shares = model_share.getLayerShares();
-  for (auto it = layer_shares.begin(); it != layer_shares.end(); ++it) {
-    switch (it->which()) {
-      case LayerShare::DENSE:
-        layers_.push_back(std::make_unique<DenseLayer>(*this, it->getDense()));
-        break;
-    }
+ServerMessage::Reader Inference::FetchMessage() {
+  std::unique_lock lock(layer_messages_mutex_);
+
+  if (layer_messages_.empty()) {
+    layer_messages_condition_.wait(lock);
   }
 
-  layers_.push_back(std::make_unique<FinalLayer>(*this));
+  auto message = layer_messages_.front();
+  layer_messages_.pop();
+  return message;
 }
 
-void Inference::StartOnlinePhase() {
-  Inference::layers_inference_ = std::jthread(&Inference::InferLayers, this);
+ComVec Inference::SendInputShare(ComVec input) {
+  // Split the input into shares
+  ::capnp::MallocMessageBuilder message_to_server;
+  auto servers_share = message_to_server.initRoot<VectorShare>();
+  auto servers_input_share = servers_share.initVectorShare(input.size());
+
+  // Generate both shares
+  ComVec our_input_share(input.size());
+  GenerateShares(input,
+      std::pair<ComVec&, ComList::Builder&>(our_input_share,
+        servers_input_share));
+
+  // Send a share to the server
+  send_(message_to_server);
+
+  return our_input_share;
 }
 
-void Inference::InferLayers() {
+auto Inference::FetchLayers() {
+  // Wait for the model share
+  auto layer_shares = FetchMessage().getModelShare().getLayerShares();
+
+  // Add the layers to the inference
+  std::vector<std::unique_ptr<Layer>> layers(layer_shares.size());
+  std::transform(layer_shares.begin(), layer_shares.end(), layers.begin(),
+      [&](LayerShare::Reader share) -> std::unique_ptr<Layer> {
+        switch (share.which()) {
+          case LayerShare::DENSE:
+            return std::make_unique<DenseLayer>(*this, share.getDense());
+          default:
+            return nullptr; // FIXME raise a new type of exception
+        }
+      });
+  layers.push_back(std::make_unique<FinalLayer>(*this));
+
+  return layers;
+}
+
+void Inference::InferLayers() noexcept {
   using namespace std::placeholders;
 
   // Convert the input from float to communicable
@@ -43,8 +74,10 @@ void Inference::InferLayers() {
 
   // Iterate over all the layers and execute each one
   try {
-    ComVec output_com = std::accumulate(layers_.begin(), layers_.end(),
-        input_com, std::bind(&Layer::Infer, _2, _1));
+    ComVec our_input_share = SendInputShare(input_com);
+    auto layers = FetchLayers();
+    ComVec output_com = std::accumulate(layers.begin(), layers.end(), our_input_share,
+      std::bind(&Layer::Infer, _2, _1));
 
     // Convert the output back to float
     std::vector<float> output(output_com.size());
@@ -57,21 +90,15 @@ void Inference::InferLayers() {
   }
 }
 
-void Inference::Receive(::capnp::MessageReader& message) {
+void Inference::Begin() {
+  layers_inference_ = std::jthread(&Inference::InferLayers, this);
+}
+
+void Inference::Receive(::capnp::MessageReader& message) noexcept {
   auto server_message = message.getRoot<ServerMessage>();
 
   switch (server_message.which()) {
     case ServerMessage::MODEL_SHARE:
-      if (!received_model_) {
-        received_model_ = true;
-        SetupModel(server_message.getModelShare());
-        StartOnlinePhase();
-      } else {
-        result_.set_exception(
-          std::make_exception_ptr(
-            new UnexpectedMessageError("Received another model share")));
-      }
-      break;
     case ServerMessage::VECTOR_SHARE: // WARNING This will be changed
       {
         std::scoped_lock<std::mutex> layer_messages_lock(layer_messages_mutex_);

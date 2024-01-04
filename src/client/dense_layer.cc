@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <execution>
 
 #include <anmlriddle/com.h>
 #include <anmlriddle/client/unexpected_message_error.h>

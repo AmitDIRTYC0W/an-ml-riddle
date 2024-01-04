@@ -22,11 +22,11 @@ using ComList = ::capnp::List<Com>;
 
 using ComVec = std::vector<Com>;
 
-inline Com FloatToCom(float x) {
+inline Com FloatToCom(float x) noexcept {
   return x * (1 << kFractionBits);
 }
 
-inline float ComToFloat(Com x) {
+inline float ComToFloat(Com x) noexcept {
   float y = x;
   return y / (1 << kFractionBits);
 }

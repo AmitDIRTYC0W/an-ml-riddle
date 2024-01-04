@@ -13,6 +13,7 @@
 #include <capnp/message.h>
 
 #include <anmlriddle/client/layer.h>
+#include <anmlriddle/com.h>
 #include "Model.capnp.h"
 
 namespace amrc {
@@ -36,18 +37,22 @@ class Inference {
 
   std::jthread layers_inference_;
 
-  void SetupModel(const ModelShare::Reader& model_share);
-  void StartOnlinePhase();
-  void InferLayers();
+  auto FetchLayers();
+  void Begin(); // TODO maybe noexcept?
+  void InferLayers() noexcept;
+
+  ComVec SendInputShare(ComVec input);
+
+  ServerMessage::Reader FetchMessage();
 
  public:
   Inference(std::function<void(const ::capnp::MessageBuilder&)> send,
             std::vector<float> input) : send_(send), input_(input) {}
-  Inference(Inference& other) = delete;
+  Inference(Inference&) = delete;
 
-  void Receive(::capnp::MessageReader& message);
+  void Receive(::capnp::MessageReader& message) noexcept;
 
-  inline std::future<std::vector<float>> get_result() {
+  inline std::future<std::vector<float>> get_result() noexcept {
     return result_.get_future();
   }
 };

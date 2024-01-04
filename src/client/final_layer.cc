@@ -13,7 +13,7 @@ namespace amrc {
 
 ComVec FinalLayer::Infer(ComVec last) {
   // The server should send us a message
-  auto servers_share = GetMessage().getVectorShare().getVectorShare();
+  auto servers_share = FetchMessage().getVectorShare().getVectorShare();
 
   if (last.size() != servers_share.size()) {
     throw UnexpectedMessageError("The server's share and ours differ in size");
