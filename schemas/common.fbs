@@ -1,0 +1,16 @@
+namespace amr;
+
+// TODO rename to Vec
+table Vector {
+  values:[int16];
+}
+
+table Matrix {
+  values:[int16];
+  columns:uint16;
+}
+
+table MTInferenceShare {
+  dShare:Matrix;
+  eShare:Matrix;
+}

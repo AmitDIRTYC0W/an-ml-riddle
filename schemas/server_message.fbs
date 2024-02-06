@@ -1,0 +1,26 @@
+include "common.fbs";
+
+namespace amr;
+
+table DenseLayerShare {
+  weightsShare:Matrix;
+  biasesShare:[int16];
+}
+
+union LayerShare { DenseLayerShare }
+
+table ModelShare {
+  layers:[LayerShare];
+}
+
+union ServerMessageUnion {
+  ModelShare,
+  MTInferenceShare,
+  OutputShare:Vector
+}
+
+table ServerMessage {
+  message:ServerMessageUnion;
+}
+
+root_type ServerMessage;

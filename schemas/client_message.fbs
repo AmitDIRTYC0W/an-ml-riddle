@@ -1,0 +1,14 @@
+include "common.fbs";
+
+namespace amr;
+
+union ClientMessageUnion {
+  InputShare:Vector,
+  MTInferenceShare
+}
+
+table ClientMessage {
+  message:ClientMessageUnion;
+}
+
+root_type ClientMessage;

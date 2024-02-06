@@ -1,0 +1,18 @@
+include "common.fbs";
+
+namespace amr;
+
+file_identifier "AMRM";
+
+table DenseLayer {
+  weights:Matrix;
+  biases:[int16];
+}
+
+union Layer { DenseLayer }
+
+table Model {
+  layers:[Layer];
+}
+
+root_type Model;
