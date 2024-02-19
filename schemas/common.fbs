@@ -1,7 +1,6 @@
 namespace amr;
 
-// TODO rename to Vec
-table Vector {
+table Dense {
   values:[int16];
 }
 

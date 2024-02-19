@@ -3,7 +3,7 @@ include "common.fbs";
 namespace amr;
 
 union ClientMessageUnion {
-  InputShare:Vector,
+  InputShare:Dense,
   MTInferenceShare
 }
 

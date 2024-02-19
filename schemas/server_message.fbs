@@ -10,13 +10,13 @@ table DenseLayerShare {
 union LayerShare { DenseLayerShare }
 
 table ModelShare {
-  layers:[LayerShare];
+  layerShares:[LayerShare];
 }
 
 union ServerMessageUnion {
   ModelShare,
   MTInferenceShare,
-  OutputShare:Vector
+  OutputShare:Dense
 }
 
 table ServerMessage {
