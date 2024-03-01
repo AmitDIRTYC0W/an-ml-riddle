@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from layer import Layer
+from .layer import Layer
 
 class ReLU(Layer):
 	def infer(self, input_: ArrayLike) -> ArrayLike:

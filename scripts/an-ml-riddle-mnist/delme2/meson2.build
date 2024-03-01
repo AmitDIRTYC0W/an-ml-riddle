@@ -1,0 +1,2 @@
+anmlriddle_mnist_sources = files('__init__.py',
+                                 'anmlriddle_mnist.py')

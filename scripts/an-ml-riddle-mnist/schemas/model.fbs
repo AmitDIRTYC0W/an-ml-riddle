@@ -3,6 +3,7 @@ include "common.fbs";
 namespace anmlriddle;
 
 file_identifier "AMRM";
+file_extension "amrm";
 
 table DenseLayer {
   weights:Matrix;
@@ -11,8 +12,12 @@ table DenseLayer {
 
 union Layer { DenseLayer }
 
+table LayerTable {
+  layer:Layer;
+}
+
 table Model {
-  layers:[Layer];
+  layers:[LayerTable];
 }
 
 root_type Model;

@@ -1,7 +1,7 @@
 import jax
 from jax.typing import ArrayLike
 
-from layer import Layer
+from .layer import Layer
 
 class Softmax(Layer):
 	def __init__(self, log: bool = False):
