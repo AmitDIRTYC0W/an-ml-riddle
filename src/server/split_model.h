@@ -3,8 +3,8 @@
 #ifndef ANMLRIDDLE_SERVER_SPLIT_MODEL_H_
 #define ANMLRIDDLE_SERVER_SPLIT_MODEL_H_
 
-#include "model_generated.h"
-#include "server_message_generated.h"
+#include "../model_generated.h"
+#include "../server_message_generated.h"
 
 // NOTE Is it even needed?
 /*

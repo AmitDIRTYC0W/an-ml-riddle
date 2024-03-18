@@ -14,7 +14,8 @@
 #include <flatbuffers/flatbuffers.h>
 
 // #include "common_generated.h"
-#include "common_generated.h"
+#include "../../src/common_generated.h"
+// #include "common_generated.h"
 
 namespace anmlriddle {
 

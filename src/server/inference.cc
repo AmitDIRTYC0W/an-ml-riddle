@@ -8,6 +8,7 @@
 #include <anmlriddle/com.h>
 #include <anmlriddle/unexpected_message_error.h>
 #include "../infer_layer.h"
+#include "anmlriddle/channel.h"
 #include "client_message_generated.h"
 #include "split_model.h"
 
@@ -18,11 +19,15 @@ namespace server {
 // XXX XXX FINAL LAYER??????
 // NOTE idea: seperate to more classes (e.g. LayerInference class)
   
-Inference::Inference(
-    std::function<void(const flatbuffers::DetachedBuffer&)> send,
-    std::span<const std::byte> model_buf) : send_(send),
-                                            layer_messages_(std::make_shared<SynchronisedQueue<>>()),
-                                            layer_io_(IO<>(layer_messages_, send)) {
+
+Inference::Infer(???) {
+  #warning this function should be guarded
+  std::jthread infer_layers(
+    [&] (std::stop_token stop_token, ...)
+  )
+}
+
+Inference::Infer(std::span<const std::byte> model_buf) {
   flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t*>(model_buf.data()), model_buf.size_bytes());
   if (!VerifyModelBuffer(verifier)) {
     throw std::runtime_error(
@@ -31,7 +36,11 @@ Inference::Inference(
       
   const Model* model = GetModel(static_cast<const void*>(model_buf.data()));
   SplitModel(model, std::make_pair(&model_share_, &client_model_share_buf_)); // NOTE should I add & before model_share_?
+
 }
+
+
+
 
 std::future<void> Inference::Begin() {
   if (began_) {

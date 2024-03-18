@@ -4,6 +4,7 @@
 
 #include <anmlriddle/com.h>
 #include "../dense_layer.h"
+#include "../server_message_generated.h"
 
 namespace anmlriddle {
 

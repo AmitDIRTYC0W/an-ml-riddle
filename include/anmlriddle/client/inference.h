@@ -9,8 +9,8 @@
 #include <Eigen/Dense>
 
 #include <anmlriddle/channel.h>
-#include "common_generated.h"
-#include "server_message_generated.h"
+#include "../../../src/common_generated.h"
+#include "../../../src/server_message_generated.h"
 #include <anmlriddle/com.h>
 
 namespace anmlriddle {

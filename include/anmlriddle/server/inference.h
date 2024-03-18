@@ -10,6 +10,7 @@
 
 #include <flatbuffers/flatbuffers.h>
 
+#include "anmlriddle/channel.h"
 #include "server_message_generated.h"
 #include <anmlriddle/com.h>
 #include <anmlriddle/multiplication_triplet.h>
@@ -19,8 +20,16 @@ namespace anmlriddle {
 namespace server {
 
 class Inference {  
+ public:
+  explicit Inference(SendFunction send) : send_(send) {}
+  Inference(Inference&) = delete;
+
+  std::future<void> Begin();
+
+  void Receive(const std::vector<std::byte> message);
+
  private:
-  std::function<void(const flatbuffers::DetachedBuffer&)> send_; // TODO Merge this kind of stuff with client's Inference (create a superclass)
+  SendFunction send_; // TODO Merge this kind of stuff with client's Inference (create a superclass)
   std::promise<void> result_;
   bool began_ = false;
 
@@ -42,15 +51,6 @@ class Inference {
 
   void InferLayers() noexcept;
   //void GenerateMTs() noexcept;
-
- public:
-  Inference(std::function<void(const flatbuffers::DetachedBuffer&)> send,
-            std::span<const std::byte> model_buf);
-  Inference(Inference&) = delete;
-
-  std::future<void> Begin();
-
-  void Receive(const std::vector<std::byte> message);
 };
 
 }  // namespace server
