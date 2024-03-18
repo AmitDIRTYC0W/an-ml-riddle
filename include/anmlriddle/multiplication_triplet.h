@@ -4,14 +4,14 @@
 #define ANMLRIDDLE_MULTIPLICATION_TRIPLET_H_
 
 #include <Eigen/Dense>
+#include <stop_token>
 
-#include <anmlriddle/com.h>
-#include <anmlriddle/synchronised_queue.h>
+#include "channel.h"
+#include "com.h"
 #include "server_message_generated.h"
-#include "client_message_generated.h"
 #include "common_generated.h"
 
-namespace amr {
+namespace anmlriddle {
 
 // Multiplication using Beaver's triplets (Donald Beaver. Efficient
 // Multiparty Protocols Using Circuit Randomization. CRYPTO 1991.)
@@ -30,13 +30,14 @@ struct MultiplicationTriplet {
 
   template <typename DerivedX, typename DerivedY>
   auto Multiply(const Eigen::MatrixBase<DerivedX>& x_share,
-                const Eigen::MatrixBase<DerivedY>& y_share, IO<> io) {
+                const Eigen::MatrixBase<DerivedY>& y_share, SendFunction send,
+                SingularSink<MTInferenceShare>& messaegesSink, std::stop_token stop_token) {
     flatbuffers::FlatBufferBuilder builder(1024);
 
-    auto [d_share_matrix, d_share] = FlatbuffersComMatrix(x_share.rows(),
+    auto [d_share_matrix, d_share] = FlatbuffersMatrix(x_share.rows(),
                                                           x_share.cols(),
                                                           builder);
-    auto [e_share_matrix, e_share] = FlatbuffersComMatrix(y_share.rows(),
+    auto [e_share_matrix, e_share] = FlatbuffersMatrix(y_share.rows(),
                                                           y_share.cols(),
                                                           builder);
   
@@ -44,19 +45,20 @@ struct MultiplicationTriplet {
     d_share = x_share - a_share;
   
     // Send our shares of d and e to the other party
+    // FIXME TODO XXX there should be seperate versions for server and client!
     auto mt_inference_share = CreateMTInferenceShare(builder, d_share_matrix,
                                                      e_share_matrix);
     auto mt_inference_share_message = CreateServerMessage(
         builder, ServerMessageUnion_MTInferenceShare,
         mt_inference_share.Union());
     builder.Finish(mt_inference_share_message);
-    io.Send(builder.Release());
+    send(builder.Release());
     
     // The other party should send us their d and e shares
-    auto their_de_shares = GetClientMessage(io.Receive().data())->message_as_MTInferenceShare();
+    auto their_de_shares = messaegesSink.Read(stop_token);
    
-    auto their_d_share_matrix = AsComMatrix(their_de_shares->dShare());
-    auto their_e_share_matrix = AsComMatrix(their_de_shares->eShare());
+    auto their_d_share_matrix = AsEigenMatrix(their_de_shares->dShare());
+    auto their_e_share_matrix = AsEigenMatrix(their_de_shares->eShare());
   
     // Reconstruct d and e
     auto d = d_share + their_d_share_matrix;
@@ -77,6 +79,6 @@ inline auto GetMT(std::size_t m, std::size_t n, std::size_t k) {
   };
 }
 
-}  // namespace amr
+}  // namespace anmlriddle
 
 #endif  // ANMLRIDDLE_MULTIPLICATION_TRIPLET_H_

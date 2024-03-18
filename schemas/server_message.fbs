@@ -1,6 +1,6 @@
 include "common.fbs";
 
-namespace amr;
+namespace anmlriddle;
 
 table DenseLayerShare {
   weightsShare:Matrix;

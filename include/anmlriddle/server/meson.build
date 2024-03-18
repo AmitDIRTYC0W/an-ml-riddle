@@ -1,3 +1,3 @@
 install_headers('inference.h',
-                subdir : 'amrs')
+                subdir : 'anmlriddle')
 

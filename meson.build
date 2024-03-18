@@ -3,7 +3,7 @@ project('an-ml-riddle', 'cpp',
         license : 'MPL-2.0',
         version : '0.1.0')
 
-shared_sources = []
+sources = []
 subdir('schemas')
 subdir('include')
 subdir('src')
@@ -25,12 +25,11 @@ endif
 #                      version : meson.project_version(),
 #                      install : true)
 
-server_sources += shared_sources
-server_lib = library('anmlriddleserver', server_sources,
-                     include_directories : inc,
-                     dependencies : deps,
-                     version : meson.project_version(),
-                     install : true)
+lib = library('anmlriddle', sources,
+              include_directories : inc,
+              dependencies : deps,
+              version : meson.project_version(),
+              install : true)
 
 # dep = declare_dependency(
 #         include_directories : inc,

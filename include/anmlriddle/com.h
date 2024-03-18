@@ -13,9 +13,10 @@
 #include <Eigen/Dense>
 #include <flatbuffers/flatbuffers.h>
 
+// #include "common_generated.h"
 #include "common_generated.h"
 
-namespace amr {
+namespace anmlriddle {
 
 // The size of the fraction in bits
 const int kFractionBits = 4;
@@ -28,9 +29,22 @@ inline Com FloatToCom(float x) noexcept {
   return x * (1 << kFractionBits);
 }
 
+inline auto FloatToCom(std::span<const float> x) noexcept {
+  const Eigen::Map<const Eigen::VectorXf> x_eigen(x.data(), x.size());
+  return (x_eigen * (1 << kFractionBits)).cast<Com>();
+}
+
 inline float ComToFloat(Com x) noexcept {
   float y = x;
   return y / (1 << kFractionBits);
+}
+
+inline std::vector<float> ComToFloat(std::span<const Com> x) noexcept {
+  std::vector<float> output_std(x.size());
+  Eigen::Map<Eigen::VectorXf> output_eigen(output_std.data(), output_std.size());
+  const Eigen::Map<const Eigen::VectorX<Com>> x_eigen(x.data(), x.size());
+  output_eigen = x_eigen.cast<float>() / (1 << kFractionBits);
+  return output_std;
 }
 
 template <typename T>
@@ -52,67 +66,54 @@ inline unsigned short RowsInMatrix(unsigned short size, unsigned short columns) 
     return size / columns;
 }
 
-inline Eigen::Map<Eigen::MatrixX<Com>> AsComMatrix(
+inline Eigen::Map<Eigen::MatrixX<Com>> AsEigenMatrix(
     std::span<Com> values, unsigned short columns) {
   unsigned short rows = RowsInMatrix(values.size(), columns);
   return Eigen::Map<Eigen::MatrixX<Com>>(values.data(), rows, columns);
 }
 
-inline Eigen::Map<const Eigen::MatrixX<Com>> AsConstComMatrix(
+inline Eigen::Map<const Eigen::MatrixX<Com>> AsEigenMatrix(
     std::span<const Com> values, unsigned short columns) {
   unsigned short rows = RowsInMatrix(values.size(), columns);
   return Eigen::Map<const Eigen::MatrixX<Com>>(values.data(), rows, columns);
 }
 
-inline Eigen::Map<const Eigen::MatrixX<Com>> AsComMatrix(const Matrix* matrix) {
+inline Eigen::Map<const Eigen::MatrixX<Com>> AsEigenMatrix(const Matrix* matrix) {
   std::span values = {matrix->values()->data(), matrix->values()->size()};
-  return AsConstComMatrix(values, matrix->columns());
+  return AsEigenMatrix(values, matrix->columns());
 }
 
-/*inline Eigen::Map<const Eigen::MatrixX<Com>> AsComMatrix(const MatrixT matrix) {
+inline Eigen::Map<Eigen::MatrixX<Com>> AsEigenMatrix(MatrixT matrix) {
   std::span values = {matrix.values.data(), matrix.values.size()};
-  return AsComMatrix(values, matrix.columns);
-}*/
-
-inline Eigen::Map<Eigen::MatrixX<Com>> AsComMatrix(MatrixT matrix) {
-  std::span values = {matrix.values.data(), matrix.values.size()};
-  return AsComMatrix(values, matrix.columns);
+  return AsEigenMatrix(values, matrix.columns);
 }
 
-inline auto FlatbuffersComMatrix(Eigen::Index rows, Eigen::Index columns,
+inline auto FlatbuffersMatrix(Eigen::Index rows, Eigen::Index columns,
                                  flatbuffers::FlatBufferBuilder& builder) {
   Com* buffer;
   auto values = builder.CreateUninitializedVector<Com>(rows * columns, &buffer);
   auto flatbuffers_matrix = CreateMatrix(builder, values, columns);
-  Eigen::Map<Eigen::MatrixX<Com>> eigen_matrix(buffer, rows, columns); // TODO eigen_matrix -> matrix_eigen and likewise
-  return std::pair(flatbuffers_matrix, eigen_matrix);
+  Eigen::Map<Eigen::MatrixX<Com>> matrix_eigen(buffer, rows, columns);
+  return std::pair(flatbuffers_matrix, matrix_eigen);
 }
 
-inline auto FlatbuffersComVec(Eigen::Index size,
+inline auto FlatbuffersDense(Eigen::Index size,
                               flatbuffers::FlatBufferBuilder& builder) {
   Com* buffer;
   auto values = builder.CreateUninitializedVector<Com>(size, &buffer);
-  auto vector_flatbuffers = CreateVector(builder, values);
+  auto dense = CreateDense(builder, values);
   Eigen::Map<Eigen::VectorX<Com>> vector_eigen(buffer, size);
-  return std::pair(vector_flatbuffers, vector_eigen);
+  return std::pair(dense, vector_eigen);
 }
 
-inline auto FlatbuffersComVector(Eigen::Index size,
-                                 flatbuffers::FlatBufferBuilder& builder) {
+inline auto FlatbuffersVector(Eigen::Index size,
+                              flatbuffers::FlatBufferBuilder& builder) {
   Com* buffer;
-  auto values = builder.CreateUninitializedVector<Com>(size, &buffer);
+  auto vector_flabuffers = builder.CreateUninitializedVector<Com>(size, &buffer);
   Eigen::Map<Eigen::VectorX<Com>> vector_eigen(buffer, size);
-  return std::pair(values, vector_eigen);
+  return std::pair(vector_flabuffers, vector_eigen);
 }
 
-// inline std::span<Com> AsSpan(capnp::Data::Reader& data) {
-//   if (data.size() % sizeof(Com) != 0) {
-//     throw std::invalid_argument("AsSpan: data buffer might not depict Coms");
-//   }
-
-//   return {data.asArray().begin(), data.size() / sizeof(Com)};
-// }
-
-}  // namespace amr
+}  // namespace anmlriddle
 
 #endif  // ANMLRIDDLE_COM_H_

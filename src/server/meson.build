@@ -1,2 +1,2 @@
-server_sources = files('split_model.cc',
-                       'inference.cc')
+sources += files('split_model.cc',
+                 'inference.cc')

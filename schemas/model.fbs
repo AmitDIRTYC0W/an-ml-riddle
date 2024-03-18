@@ -1,6 +1,6 @@
 include "common.fbs";
 
-namespace amr;
+namespace anmlriddle;
 
 file_identifier "AMRM";
 

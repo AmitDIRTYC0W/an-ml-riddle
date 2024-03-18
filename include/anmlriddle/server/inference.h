@@ -5,19 +5,16 @@
 
 #include <functional>
 #include <future>
-#include <queue>
 #include <optional>
 #include <thread>
 
 #include <flatbuffers/flatbuffers.h>
 
-#include "model_generated.h"
 #include "server_message_generated.h"
 #include <anmlriddle/com.h>
-#include <anmlriddle/synchronised_queue.h>
 #include <anmlriddle/multiplication_triplet.h>
 
-namespace amr {
+namespace anmlriddle {
 
 namespace server {
 
@@ -58,6 +55,6 @@ class Inference {
 
 }  // namespace server
 
-}  // namespace amr
+}  // namespace anmlriddle
 
 #endif  // ANMLRIDDLE_SERVER_INFERENCE_H_

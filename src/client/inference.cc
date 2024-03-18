@@ -2,111 +2,126 @@
 
 #include <anmlriddle/client/inference.h>
 
-#include <algorithm>
-#include <execution>
 #include <ranges>
+#include <stop_token>
+#include <thread>
 
-#include "../generate_shares.h"
-#include <anmlriddle/client/final_layer.h>
-#include <anmlriddle/client/dense_layer.h>
+#include "../split_dense.h"
+#include <anmlriddle/unexpected_message_error.h>
 #include <anmlriddle/com.h>
-#include "Model.capnp.h"
+#include "../client_message_generated.h"
+#include "../infer_layer.h"
 
-namespace amrc {
+namespace anmlriddle {
+// 
+namespace client {
 
-ServerMessage::Reader Inference::FetchMessage() {
-  std::unique_lock lock(layer_messages_mutex_);
+inline std::pair<Eigen::VectorX<Com>, flatbuffers::DetachedBuffer> SplitInput(std::span<const float> input) {
+  // Convert the input to Com
+  auto input_com = FloatToCom(input);
+  
+  // Prepare the first share
+  Eigen::VectorX<Com> first_share(input.size());
+  
+  // Prepare the second share inside a flatbuffers builder
+  flatbuffers::FlatBufferBuilder second_share_builder;
+  auto [second_share_flatbuffers, second_share_eigen] = FlatbuffersDense(input.size(), second_share_builder);
+  
+  // Split the shares
+  SplitDense(input_com, first_share, second_share_eigen);
+  
+  // Finish the buffer of the second share
+  auto message = CreateClientMessage(second_share_builder, ClientMessageUnion_InputShare,
+                                     second_share_flatbuffers.Union());
+  second_share_builder.Finish(message);
+  
+  return {first_share, second_share_builder.Release()};
+}
 
-  if (layer_messages_.empty()) {
-    layer_messages_condition_.wait(lock);
+// TODO lose the std::pair
+inline std::vector<float> ReconstructOutput(std::pair<Eigen::VectorX<Com>, const Dense*> shares) {
+  #warning need to assert shares.first.size() == shares.second->???->size();
+  
+  auto second_share_flatbuffers = shares.second->values();
+  Eigen::Map<const Eigen::VectorX<Com>> second_share_eigen(second_share_flatbuffers->data(),
+                                                     second_share_flatbuffers->size());
+  
+  std::vector<Com> output_com(shares.first.size());
+  Eigen::Map<Eigen::VectorX<Com>> output_eigen(output_com.data(), output_com.size());
+  
+  output_eigen = shares.first + second_share_eigen;
+  
+  return ComToFloat(output_com);
+}
+
+std::vector<float> Inference::Infer(std::span<float> input) {
+  #warning this function should be guarded
+  // TODO split the input here, not in the seperate thread
+  std::jthread infer_layers(
+      [&] (std::stop_token stop_token, std::span<float> input) { InferLayers(stop_token, input); },
+      input);
+  return output_promise_.get_future().get();
+}
+
+void Inference::Receive(std::vector<std::byte>& message_buffer) {
+  // Verify the message is valid
+  flatbuffers::Verifier verifier(reinterpret_cast<uint8_t*>(message_buffer.data()), message_buffer.size());
+  if (!VerifyServerMessageBuffer(verifier)) {
+      throw UnexpectedMessageError("MessagesMultiplexer::Parse: received an invalid message");
   }
-
-  auto message = layer_messages_.front();
-  layer_messages_.pop();
-  return message;
+  
+  // Parse the message
+  const ServerMessage* message = GetServerMessage(static_cast<void*>(message_buffer.data()));
+  
+  // Multiplex the message
+  switch (message->message_type()) {
+   case ServerMessageUnion_ModelShare:
+    model_share_.Insert(message_buffer, message->message_as_ModelShare());
+    break;
+   case ServerMessageUnion_MTInferenceShare:
+    mt_inference_share_.Insert(message_buffer, message->message_as_MTInferenceShare());
+    break;
+   case ServerMessageUnion_OutputShare:
+    their_output_share_.Insert(message_buffer, message->message_as_OutputShare());
+    break;
+   default:
+    throw UnexpectedMessageError("Inference::Receive: received a message of an unknown type");
+  }
 }
 
-ComVec Inference::SendInputShare(ComVec input) {
-  // Split the input into shares
-  ::capnp::MallocMessageBuilder message_to_server;
-  auto servers_share = message_to_server.initRoot<VectorShare>();
-  auto servers_input_share = servers_share.initVectorShare(input.size());
-
-  // Generate both shares
-  ComVec our_input_share(input.size());
-  GenerateShares(input,
-      std::pair<ComVec&, ComList::Builder&>(our_input_share,
-        servers_input_share));
-
-  // Send a share to the server
-  send_(message_to_server);
-
-  return our_input_share;
-}
-
-auto Inference::FetchLayers() {
-  // Wait for the model share
-  auto layer_shares = FetchMessage().getModelShare().getLayerShares();
-
-  // Add the layers to the inference
-  std::vector<std::unique_ptr<Layer>> layers(layer_shares.size());
-  std::transform(layer_shares.begin(), layer_shares.end(), layers.begin(),
-      [&](LayerShare::Reader share) -> std::unique_ptr<Layer> {
-        switch (share.which()) {
-          case LayerShare::DENSE:
-            return std::make_unique<DenseLayer>(*this, share.getDense());
-          default:
-            return nullptr; // FIXME raise a new type of exception
-        }
-      });
-  layers.push_back(std::make_unique<FinalLayer>(*this));
-
-  return layers;
-}
-
-void Inference::InferLayers() noexcept {
-  using namespace std::placeholders;
-
-  // Convert the input from float to communicable
-  ComVec input_com(input_.size());
-  std::transform(std::execution::par_unseq, input_.begin(), input_.end(),
-      input_com.begin(), FloatToCom);
-
-  // Iterate over all the layers and execute each one
+void Inference::InferLayers(std::stop_token stop_token, std::span<float> input) noexcept {
   try {
-    ComVec our_input_share = SendInputShare(input_com);
-    auto layers = FetchLayers();
-    ComVec output_com = std::accumulate(layers.begin(), layers.end(), our_input_share,
-      std::bind(&Layer::Infer, _2, _1));
+    // Split the input into shares and send the server its share
+    auto [activations_share, their_input_share] = SplitInput(input);
+    send_(their_input_share);
+  
+    // Wait for the model share
+    const ModelShare* model_share = model_share_.Read(stop_token);
+    if (!model_share) {
+      return;
+    }
+    
+    // Evaluate each layer
+    auto layer_share = model_share->layerShares()->cbegin();
+    auto layer_type = model_share->layerShares_type()->cbegin();
+    while (layer_share != model_share->layerShares()->cend()) {
+      // LayerShareUnion l;
+      activations_share = InferLayer(static_cast<void*>(&layer_share), static_cast<const LayerShare>(*layer_type),
+                               activations_share, &GetMT, stop_token, mt_inference_share_, send_);
 
-    // Convert the output back to float
-    std::vector<float> output(output_com.size());
-    std::transform(output_com.begin(), output_com.end(), output.begin(),
-        ComToFloat);
-    result_.set_value(output);
+      ++layer_share;
+      ++layer_type;
+    }
+    
+    // Wait for the server's output share and reconstruct the outupt
+    output_promise_.set_value(ReconstructOutput(std::make_pair(activations_share, their_output_share_.Read())));
+
+    //Eigen::VectorX<Com>
   } catch (...) {
-    // WARNING I'm not sure std::accumulate propogates exceptions...
-    result_.set_exception(std::current_exception());
+    output_promise_.set_exception(std::current_exception());
   }
 }
 
-void Inference::Begin() {
-  layers_inference_ = std::jthread(&Inference::InferLayers, this);
-}
+}  // namespace client
 
-void Inference::Receive(::capnp::MessageReader& message) noexcept {
-  auto server_message = message.getRoot<ServerMessage>();
-
-  switch (server_message.which()) {
-    case ServerMessage::MODEL_SHARE:
-    case ServerMessage::VECTOR_SHARE: // WARNING This will be changed
-      {
-        std::scoped_lock<std::mutex> layer_messages_lock(layer_messages_mutex_);
-        layer_messages_.push(server_message);
-      }
-      layer_messages_condition_.notify_one();
-      break;
-  }
-}
-
-}  // namespace amrc
+}  // namespace anmlriddle

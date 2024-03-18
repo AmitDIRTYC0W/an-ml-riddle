@@ -13,11 +13,11 @@ void SplitDenseLayer(LayerDescription::Dense::Reader description,
                                LayerShare::Dense::Builder> shares);
 */
 
-namespace amr {
+namespace anmlriddle {
 
-void SplitModel(const Model* model,
-                std::pair<ModelShareT*, flatbuffers::DetachedBuffer*> shares);
+void SplitModel(const Model* model, std::pair<ModelShareT*, flatbuffers::DetachedBuffer*> shares);
+ // TODO use references instead, maybe?
 
-}  // namespace amr
+}  // namespace anmlriddle
 
 #endif  // ANMLRIDDLE_SERVER_SPLIT_MODEL_H_

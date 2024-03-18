@@ -1,0 +1,6 @@
+-xc++
+-std=c++23
+-I
+/usr/local/include
+-I
+subprojects/eigen-3.4.0

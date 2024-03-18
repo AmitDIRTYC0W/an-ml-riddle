@@ -1,4 +1,4 @@
-namespace amr;
+namespace anmlriddle;
 
 table Dense {
   values:[int16];

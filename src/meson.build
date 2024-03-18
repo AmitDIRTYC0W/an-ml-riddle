@@ -1,7 +1,7 @@
 subdir('client')
-subdir('server')
+# subdir('server')
 
-shared_sources += files('split_vector.cc',
-                        'dense_layer.cc',
-                        'infer_layer.cc')
+sources += files('dense_layer.cc',
+                 'infer_layer.cc')
+                #  'split_dense.cc')
 

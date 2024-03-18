@@ -1,4 +1,7 @@
 build
+.cache
 
 subprojects/*
 !subprojects/*.wrap
+
+*_generated.h

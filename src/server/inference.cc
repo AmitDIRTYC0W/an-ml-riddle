@@ -5,12 +5,13 @@
 #include <ranges>
 #include <numeric>
 
+#include <anmlriddle/com.h>
 #include <anmlriddle/unexpected_message_error.h>
 #include "../infer_layer.h"
 #include "client_message_generated.h"
 #include "split_model.h"
 
-namespace amr {
+namespace anmlriddle {
 
 namespace server {
 
@@ -19,12 +20,13 @@ namespace server {
   
 Inference::Inference(
     std::function<void(const flatbuffers::DetachedBuffer&)> send,
-    std::span<const std::byte> model_buf) : send_(send), layer_messages_(std::make_shared<SynchronisedQueue<>>()), layer_io_(IO<>(layer_messages_, send)) {
-  flatbuffers::Verifier verifier(
-      reinterpret_cast<const uint8_t*>(model_buf.data()), model_buf.size_bytes());
+    std::span<const std::byte> model_buf) : send_(send),
+                                            layer_messages_(std::make_shared<SynchronisedQueue<>>()),
+                                            layer_io_(IO<>(layer_messages_, send)) {
+  flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t*>(model_buf.data()), model_buf.size_bytes());
   if (!VerifyModelBuffer(verifier)) {
     throw std::runtime_error(
-        "Inference::Inference: tried to read a corrupt model");
+        "Inference::Inference: tried to read an invalid model");
   }
       
   const Model* model = GetModel(static_cast<const void*>(model_buf.data()));
@@ -44,9 +46,7 @@ std::future<void> Inference::Begin() {
   return result_.get_future();
 }
 
-void Inference::InferLayers() noexcept {
-  using namespace std::placeholders;
-    
+void Inference::InferLayers() noexcept {    
   try {
     // Wait for the input share
     std::unique_lock input_lock(input_mutex_);
@@ -57,9 +57,13 @@ void Inference::InferLayers() noexcept {
     Eigen::Map<const Eigen::VectorX<Com>> input_vector(input_values->data(), input_values->size());
 
     Eigen::VectorX<Com> activations = input_vector;
-    for (auto layer : model_share_.layers) {
+    for (auto layer : model_share_.layerShares) {
       activations = InferLayer(layer, activations, &GetMT, layer_io_);
     }
+    
+    #warning Actually send the value to the client
+    /* TODO XXX This shall no be done here (ultimately), this function shall only 
+     * return the output_share  (or, alternatively, move the sending here too)*/
 
     result_.set_value();
   } catch (...) {
@@ -95,4 +99,4 @@ void Inference::Receive(const std::vector<std::byte> message) {
 
 }  // namespace server
 
-}  // namespace amr
+}  // namespace anmlriddle

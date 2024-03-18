@@ -1,0 +1,10 @@
+-xc++
+-std=c++23
+-I
+/home/user/.libs-for-vscodium
+-I
+../subprojects/eigen-3.4.0
+-iquote
+../build/libanmlriddle.so.0.1.0.p
+-I
+../include

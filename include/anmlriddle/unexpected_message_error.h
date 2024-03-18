@@ -5,13 +5,13 @@
 
 #include <stdexcept>
 
-namespace amr {
+namespace anmlriddle {
 class UnexpectedMessageError : public std::logic_error {
  public:
     explicit UnexpectedMessageError(const char* what_arg)
         : std::logic_error(what_arg) {}
 };
-}  // namespace amr
+}  // namespace anmlriddle
 
 
 #endif  // ANMLRIDDLE_CLIENT_UNEXPECTED_MESSAGE_ERROR_H_
