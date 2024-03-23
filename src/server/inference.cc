@@ -7,9 +7,11 @@
 
 #include <anmlriddle/com.h>
 #include <anmlriddle/unexpected_message_error.h>
+#include <thread>
 #include "../infer_layer.h"
+#include "Eigen/src/Core/Matrix.h"
 #include "anmlriddle/channel.h"
-#include "client_message_generated.h"
+#include "../client_message_generated.h"
 #include "split_model.h"
 
 namespace anmlriddle {
@@ -19,60 +21,45 @@ namespace server {
 // XXX XXX FINAL LAYER??????
 // NOTE idea: seperate to more classes (e.g. LayerInference class)
   
-
-Inference::Infer(???) {
+void Inference::Infer(std::span<const std::byte> model_buffer) {
   #warning this function should be guarded
-  std::jthread infer_layers(
-    [&] (std::stop_token stop_token, ...)
-  )
-}
 
-Inference::Infer(std::span<const std::byte> model_buf) {
-  flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t*>(model_buf.data()), model_buf.size_bytes());
+  flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t*>(model_buffer.data()), model_buffer.size_bytes());
   if (!VerifyModelBuffer(verifier)) {
     throw std::runtime_error(
         "Inference::Inference: tried to read an invalid model");
   }
       
-  const Model* model = GetModel(static_cast<const void*>(model_buf.data()));
-  SplitModel(model, std::make_pair(&model_share_, &client_model_share_buf_)); // NOTE should I add & before model_share_?
+  const Model* model = GetModel(static_cast<const void*>(model_buffer.data()));
+  SplitModel(model, std::make_pair(&model_share_, &client_model_share_buf_));  // NOTE should I add & before model_share_?
 
-}
-
-
-
-
-std::future<void> Inference::Begin() {
-  if (began_) {
-    throw std::runtime_error("Inference::Begin may be called only once");
-  }
-  began_ = true;
-
-  send_(client_model_share_buf_);
-
-  layers_inference_ = std::jthread(&Inference::InferLayers, this);
+  std::jthread infer_layers(
+    [&] (std::stop_token stop_token) { InferLayers(stop_token); });
   
-  return result_.get_future();
+  // Throw an exception if one occurs
+  result_.get_future().get();
 }
 
-void Inference::InferLayers() noexcept {    
+void Inference::InferLayers(std::stop_token stop_token) noexcept {    
   try {
-    // Wait for the input share
-    std::unique_lock input_lock(input_mutex_);
-    input_condition_.wait(input_lock,
-                          std::bind(&decltype(input_)::has_value, input_));
-    auto input_message = GetClientMessage(input_->data());
-    auto input_values = input_message->message_as_InputShare()->values();
-    Eigen::Map<const Eigen::VectorX<Com>> input_vector(input_values->data(), input_values->size());
+    // Send the client its model share
+    send_(client_model_share_buf_);
 
-    Eigen::VectorX<Com> activations = input_vector;
-    for (auto layer : model_share_.layerShares) {
-      activations = InferLayer(layer, activations, &GetMT, layer_io_);
+    // Wait for the input share
+    const Dense* input_share = input_share_.Read(stop_token);
+    if (!input_share) {
+      return;
     }
-    
-    #warning Actually send the value to the client
-    /* TODO XXX This shall no be done here (ultimately), this function shall only 
-     * return the output_share  (or, alternatively, move the sending here too)*/
+
+    Eigen::VectorX<Com> activations_share = AsEigenVector(input_share);
+
+    // Evaluate each layer
+    for (auto layer_share : model_share_.layerShares) {
+      activations_share = InferLayer(layer_share, activations_share, &GetMT, stop_token,
+                                     mt_inference_share_, send_);
+    }
+
+    #warning send the client the output share
 
     result_.set_value();
   } catch (...) {
@@ -80,26 +67,26 @@ void Inference::InferLayers() noexcept {
   }
 }
 
-void Inference::Receive(const std::vector<std::byte> message) {
+void Inference::Receive(std::vector<std::byte> message_buffer) {
+  // Verify the message is valid
   flatbuffers::Verifier verifier(
-      reinterpret_cast<const uint8_t*>(message.data()), message.size());
+      reinterpret_cast<const uint8_t*>(message_buffer.data()), message_buffer.size());
   if (!VerifyClientMessageBuffer(verifier)) {
     throw UnexpectedMessageError(
         "Inference::Receive: tried to read a corrupt message");
   }
-  const ClientMessage* client_message = GetClientMessage(
-      static_cast<const void*>(message.data()));
+
+  // Parse the message
+  const ClientMessage* message = GetClientMessage(
+      static_cast<const void*>(message_buffer.data()));
   
-  switch (client_message->message_type()) {
+  // Multiplex the message
+  switch (message->message_type()) {
    case ClientMessageUnion_InputShare:
-    {
-      std::scoped_lock<std::mutex> input_lock(input_mutex_);
-      input_ = message;
-    }
-    input_condition_.notify_all();
+    input_share_.Insert(message_buffer, message->message_as_InputShare());
     break;
    case ClientMessageUnion_MTInferenceShare:
-    layer_messages_->Push(message);
+    mt_inference_share_.Insert(message_buffer, message->message_as_MTInferenceShare());
     break;
    default:
     throw UnexpectedMessageError("Inference::Receive: received a message of unknown type");

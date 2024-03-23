@@ -55,7 +55,15 @@ inline std::vector<float> ReconstructOutput(std::pair<Eigen::VectorX<Com>, const
 }
 
 std::vector<float> Inference::Infer(std::span<float> input) {
-  #warning this function should be guarded
+  #warning this function should be guarded like so:
+  /*
+    if (began_) {
+    throw std::runtime_error("Inference::Begin may be called only once");
+  }
+  began_ = true;
+  */
+
+  
   // TODO split the input here, not in the seperate thread
   std::jthread infer_layers(
       [&] (std::stop_token stop_token, std::span<float> input) { InferLayers(stop_token, input); },
@@ -67,7 +75,7 @@ void Inference::Receive(std::vector<std::byte>& message_buffer) {
   // Verify the message is valid
   flatbuffers::Verifier verifier(reinterpret_cast<uint8_t*>(message_buffer.data()), message_buffer.size());
   if (!VerifyServerMessageBuffer(verifier)) {
-      throw UnexpectedMessageError("MessagesMultiplexer::Parse: received an invalid message");
+      throw UnexpectedMessageError("Inference::Receive: received an invalid message");
   }
   
   // Parse the message
@@ -105,7 +113,6 @@ void Inference::InferLayers(std::stop_token stop_token, std::span<float> input) 
     auto layer_share = model_share->layerShares()->cbegin();
     auto layer_type = model_share->layerShares_type()->cbegin();
     while (layer_share != model_share->layerShares()->cend()) {
-      // LayerShareUnion l;
       activations_share = InferLayer(static_cast<void*>(&layer_share), static_cast<const LayerShare>(*layer_type),
                                activations_share, &GetMT, stop_token, mt_inference_share_, send_);
 
@@ -115,8 +122,6 @@ void Inference::InferLayers(std::stop_token stop_token, std::span<float> input) 
     
     // Wait for the server's output share and reconstruct the outupt
     output_promise_.set_value(ReconstructOutput(std::make_pair(activations_share, their_output_share_.Read())));
-
-    //Eigen::VectorX<Com>
   } catch (...) {
     output_promise_.set_exception(std::current_exception());
   }

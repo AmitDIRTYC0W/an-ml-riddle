@@ -8,8 +8,8 @@
 
 #include "channel.h"
 #include "com.h"
-#include "server_message_generated.h"
-#include "common_generated.h"
+#include "../../src/server_message_generated.h"
+#include "../../src/common_generated.h"
 
 namespace anmlriddle {
 
@@ -45,7 +45,7 @@ struct MultiplicationTriplet {
     d_share = x_share - a_share;
   
     // Send our shares of d and e to the other party
-    // FIXME TODO XXX there should be seperate versions for server and client!
+    // FIXME TODO XXX merge ServerMessage and ClientMessage into just Message
     auto mt_inference_share = CreateMTInferenceShare(builder, d_share_matrix,
                                                      e_share_matrix);
     auto mt_inference_share_message = CreateServerMessage(

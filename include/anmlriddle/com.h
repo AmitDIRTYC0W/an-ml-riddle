@@ -89,6 +89,10 @@ inline Eigen::Map<Eigen::MatrixX<Com>> AsEigenMatrix(MatrixT matrix) {
   return AsEigenMatrix(values, matrix.columns);
 }
 
+inline Eigen::Map<const Eigen::VectorX<Com>> AsEigenVector(const Dense* dense) {
+  return Eigen::Map<const Eigen::VectorX<Com>>(dense->values()->data(), dense->values()->size());
+}
+
 inline auto FlatbuffersMatrix(Eigen::Index rows, Eigen::Index columns,
                                  flatbuffers::FlatBufferBuilder& builder) {
   Com* buffer;
